@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Upload a resume, pick a target role and see which skills it proves, which it only claims, and what to fix first.">
+<title>Resume Skill Analyzer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Resume Skill Analyzer. Cool paper grey, ink navy, and one highlighter-yellow accent used for skills. */
+:root {
+  --bg: #EDF0F3; --surface: #FFFFFF; --surface-2: #F5F7F9; --ink: #14212B; --muted: #566672;
+  --line: #D6DDE3; --line-strong: #9FADB8; --track: #E1E6EB; --bar: #A9B7C2;
+  --btn: #1B2A49; --on-btn: #FFFFFF;
+  --mark: #FFE08A; --mark-ink: #14212B; --mark-line: #E9B400;
+  --good: #1F8A55; --good-bg: #DFF3E8; --warn: #9A6200; --warn-bg: #FCEFD2; --bad: #C23B2E; --bad-bg: #FADEDA;
+  --focus: #2F5BEA;
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151B; --surface: #16202A; --surface-2: #1B2833; --ink: #E5ECF1; --muted: #92A3B0;
+    --line: #2A3A47; --line-strong: #4C6070; --track: #263441; --bar: #4A5E6D;
+    --btn: #D3DEFF; --on-btn: #0F1B33; --mark: #6B5614; --mark-ink: #FFF2C6; --mark-line: #E3B52F;
+    --good: #4CC38A; --good-bg: #17382A; --warn: #E3A740; --warn-bg: #3C2F12; --bad: #F2796D; --bad-bg: #40201D;
+    --focus: #8FB0FF; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151B; --surface: #16202A; --surface-2: #1B2833; --ink: #E5ECF1; --muted: #92A3B0;
+  --line: #2A3A47; --line-strong: #4C6070; --track: #263441; --bar: #4A5E6D;
+  --btn: #D3DEFF; --on-btn: #0F1B33; --mark: #6B5614; --mark-ink: #FFF2C6; --mark-line: #E3B52F;
+  --good: #4CC38A; --good-bg: #17382A; --warn: #E3A740; --warn-bg: #3C2F12; --bad: #F2796D; --bad-bg: #40201D;
+  --focus: #8FB0FF; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 800; line-height: 1.04; letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.4rem, 3.4vw, 1.9rem); font-weight: 800; letter-spacing: -0.01em; line-height: 1.15; }
+h3 { font-size: 0.95rem; font-weight: 800; }
+p { margin: 0; }
+a { color: inherit; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); font-size: 1.05rem; max-width: 56ch; }
+.skip { position: absolute; left: -999px; top: 0; background: var(--btn); color: var(--on-btn); padding: 8px 12px; z-index: 50; }
+.skip:focus { left: 8px; }
+
+/* nav */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+.nav-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 800; text-decoration: none; min-width: 0; }
+.brand .mk { background: var(--mark); color: var(--mark-ink); font-family: var(--f-mono); font-size: 12px; font-weight: 600; padding: 3px 6px; border-radius: 4px; }
+.nav nav { display: flex; align-items: center; gap: 18px; font-size: 14px; font-weight: 500; }
+.nav nav a { text-decoration: none; color: var(--muted); }
+.nav nav a:hover { color: var(--ink); }
+@media (max-width: 560px) { .nav nav .lnk { display: none; } .brand span:last-child { font-size: 14px; } }
+
+section { padding-block: 44px; }
+.hero { padding-block: 40px 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: center; }
+@media (min-width: 900px) { .hero { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 48px; } }
+.hero .copy { display: flex; flex-direction: column; gap: 18px; }
+.hero h1 mark { background: var(--mark); color: var(--mark-ink); padding: 0 6px; border-radius: 4px; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+.facts span::before { content: "• "; color: var(--mark-line); }
+
+/* buttons, fields */
+.btn { font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 8px; padding: 10px 16px; background: var(--btn); color: var(--on-btn); border: 1px solid var(--btn); text-decoration: none; display: inline-block; text-align: center; }
+.btn:hover { filter: brightness(1.1); }
+.btn.sm { padding: 6px 12px; font-size: 13px; color: var(--on-btn); }
+.nav nav a.btn { color: var(--on-btn); }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.btn.ghost:hover { background: var(--surface-2); filter: none; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+:where(a, button, input, select, textarea, summary, .doc):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+label, .label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+textarea, select { width: 100%; font: inherit; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+textarea { font-family: var(--f-mono); font-size: 12.5px; line-height: 1.6; resize: vertical; min-height: 120px; }
+#resume { min-height: 300px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.small { font-size: 12.5px; color: var(--muted); }
+.tag { display: inline-block; font-family: var(--f-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--mark); color: var(--mark-ink); }
+.file { position: relative; display: inline-block; }
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.file:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+.status { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); }
+.status.err { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+
+/* hero mock */
+.mock { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.mock .bar-top { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-family: var(--f-mono); font-size: 11px; color: var(--muted); justify-content: space-between; }
+.mock .doc { border: 0; border-radius: 0; max-height: none; background: var(--surface); }
+.mock .cap { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12.5px; color: var(--muted); align-items: center; }
+
+/* analyzer */
+.sec-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (min-width: 920px) { .grid { grid-template-columns: minmax(0, 380px) minmax(0, 1fr); } .input-card { position: sticky; top: 72px; } }
+.input-card { display: flex; flex-direction: column; gap: 14px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: -4px -4px 16px; padding: 0 4px; scrollbar-width: thin; }
+.tab { font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 10px 10px 9px; cursor: pointer; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.panel { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.scorehead { display: flex; flex-wrap: wrap; gap: 18px 24px; align-items: center; }
+.ring { position: relative; width: 112px; height: 112px; flex: none; }
+.ring svg { width: 100%; height: 100%; display: block; }
+.ring b { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-display); font-size: 2.1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.s-good { --c: var(--good); } .s-warn { --c: var(--warn); } .s-bad { --c: var(--bad); }
+.verdict { font-family: var(--f-display); font-size: 1.35rem; font-weight: 800; line-height: 1.15; }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px 22px; }
+.meter { display: flex; flex-direction: column; gap: 5px; }
+.meter .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.meter .top span:first-child { color: var(--muted); }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+.bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--c, var(--btn)); border-radius: 4px; }
+.fixes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; counter-reset: fx; }
+.fixes li { counter-increment: fx; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; }
+.fixes li::before { content: counter(fx); font-family: var(--f-mono); font-size: 12px; font-weight: 600; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); display: grid; place-items: center; margin-top: 1px; }
+.kind { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.rank { display: flex; flex-direction: column; gap: 10px; }
+.rank-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: 13.5px; }
+.rank-row .bar { grid-column: 1 / -1; height: 7px; }
+.rank-row .bar > i { background: var(--bar); }
+.rank-row.is-target { font-weight: 600; }
+.rank-row.is-target .bar > i { background: var(--btn); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--f-mono); font-size: 12px; padding: 3px 8px; border-radius: 6px; border: 1px solid transparent; line-height: 1.4; overflow-wrap: anywhere; }
+.chip.d { background: var(--mark); color: var(--mark-ink); }
+.chip.l { border-color: var(--line-strong); background: transparent; }
+.chip.m { border: 1px dashed var(--bad); color: var(--bad); background: transparent; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12.5px; color: var(--muted); align-items: center; }
+.group { display: flex; flex-direction: column; gap: 6px; }
+.group h3 { display: flex; gap: 8px; align-items: baseline; }
+.group h3 .num { color: var(--muted); font-size: 12px; }
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.checks li { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 4px 12px; padding: 11px 0; border-top: 1px solid var(--line); align-items: start; }
+.checks li:first-child { border-top: 0; }
+.pill { font-family: var(--f-mono); font-size: 11px; font-weight: 600; text-align: center; padding: 3px 0; border-radius: 6px; }
+.pill.pass { background: var(--good-bg); color: var(--good); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.fail { background: var(--bad-bg); color: var(--bad); }
+.checks .t { font-weight: 600; }
+.checks .d { color: var(--muted); font-size: 13.5px; }
+@media (max-width: 520px) { .checks li { grid-template-columns: 66px minmax(0, 1fr); } .checks li .num { grid-column: 2; } }
+.doc { font-family: var(--f-mono); font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; max-height: 560px; overflow: auto; }
+.doc b { font-weight: 600; letter-spacing: 0.04em; }
+mark.sk { background: var(--mark); color: var(--mark-ink); border-radius: 3px; padding: 0 2px; }
+mark.sk.l { background: transparent; color: inherit; box-shadow: inset 0 -2px 0 var(--mark-line); border-radius: 0; }
+.bfix { display: grid; gap: 6px; padding: 12px; background: var(--surface-2); border-radius: 10px; }
+.bfix ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+.formula { font-family: var(--f-mono); font-size: 12.5px; background: var(--surface-2); padding: 10px 12px; border-radius: 8px; overflow-x: auto; }
+.empty { padding: 28px 8px; color: var(--muted); text-align: center; }
+
+/* content sections */
+.cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 40px; }
+@media (min-width: 760px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.def { padding: 18px 0; border-top: 1px solid var(--line-strong); display: flex; flex-direction: column; gap: 6px; }
+.def p { color: var(--muted); }
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: st; display: grid; gap: 0 40px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.steps li { counter-increment: st; padding: 16px 0 16px 44px; border-top: 1px solid var(--line-strong); position: relative; }
+.steps li::before { content: counter(st); position: absolute; left: 0; top: 16px; width: 28px; height: 28px; display: grid; place-items: center; font-family: var(--f-mono); font-weight: 600; font-size: 13px; background: var(--mark); color: var(--mark-ink); border-radius: 6px; }
+.steps b { font-family: var(--f-display); display: block; margin-bottom: 2px; }
+.steps p { color: var(--muted); }
+code { font-family: var(--f-mono); font-size: 12.5px; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+.about { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+@media (min-width: 760px) { .about { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.about ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+footer { border-top: 1px solid var(--line); padding-block: 24px 40px; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; }
+#printReport { display: none; }
+@media (prefers-reduced-motion: no-preference) { .bar > i { transition: width .35s ease; } }
+
+/* print: only the report */
+@media print {
+  body { background: #fff; color: #000; padding: 0; }
+  body > *:not(#printReport) { display: none !important; }
+  body::before { display: none; }
+  #printReport { display: block !important; }
+  #printReport * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #printReport .pr-sec { break-inside: avoid-page; margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  #printReport h1 { font-size: 22pt; }
+  #printReport h2 { font-size: 13pt; margin-top: 6px; border-bottom: 1px solid #999; padding-bottom: 4px; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#analyzer">Skip to the analyzer</a>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="#top"><span class="mk">RS</span><span>Resume Skill Analyzer</span></a>
+    <nav aria-label="Main">
+      <a class="lnk" href="#features">What you get</a>
+      <a class="lnk" href="#how">How it works</a>
+      <a class="lnk" href="#about">About</a>
+      <a class="btn sm" href="#analyzer">Analyze</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top" class="wrap">
+  <section class="hero">
+    <div class="copy">
+      <span class="eyebrow">Resume screening, explained</span>
+      <h1>See which skills your resume <mark>proves</mark>, and which it only claims.</h1>
+      <p class="lede">Upload your resume, choose a role, and get the skills it shows, a match score for that role, and a short list of what to fix first.</p>
+      <div class="cta">
+        <a class="btn" href="#analyzer">Analyze my resume</a>
+        <a class="btn ghost" href="#how">How it works</a>
+      </div>
+      <div class="facts"><span>PDF, Word or text</span><span>8 roles or any job description</span><span>Runs in your browser</span></div>
+    </div>
+    <div class="mock" aria-label="Example of a highlighted resume">
+      <div class="bar-top"><span>sample-resume.pdf</span><span>Data Scientist</span></div>
+<div class="doc"><b>SKILLS</b>
+Languages: <mark class="sk l">Python</mark>, <mark class="sk l">Java</mark>, <mark class="sk l">SQL</mark>
+Data &amp; ML: <mark class="sk l">Pandas</mark>, <mark class="sk l">NumPy</mark>, <mark class="sk l">Scikit-learn</mark>
+
+<b>PROJECTS</b>
+Student Performance Predictor
+- Built a regression model in <mark class="sk">Python</mark> using <mark class="sk">Scikit-learn</mark> to predict exam scores
+- Cleaned 1,200 student records with <mark class="sk">Pandas</mark>
+- Improved R2 score from 0.61 to 0.78</div>
+      <div class="cap"><span><mark class="sk">Python</mark> proven in a project</span><span><mark class="sk l">NumPy</mark> only listed</span></div>
+    </div>
+  </section>
+
+  <section id="analyzer">
+    <div class="sec-head">
+      <span class="eyebrow">Analyzer</span>
+      <h2>Check your resume</h2>
+      <p class="lede">A sample resume is loaded so you can see the result straight away. Replace it with your own.</p>
+    </div>
+    <div class="grid">
+      <div class="card input-card">
+        <div class="field">
+          <div class="row" style="justify-content: space-between">
+            <label for="resume">Resume text</label>
+            <span id="sampleTag" class="tag">Sample resume</span>
+          </div>
+          <textarea id="resume" spellcheck="false" placeholder="Paste your resume text here, or upload a file below"></textarea>
+          <div class="row" style="justify-content: space-between">
+            <span class="small" id="wc">0 words</span>
+            <span class="small">Updates as you type</span>
+          </div>
+        </div>
+        <div class="row">
+          <label class="btn ghost file" for="fileIn">Upload PDF, DOCX or TXT<input id="fileIn" type="file" accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"></label>
+          <button class="btn ghost" id="loadSample" type="button">Load sample</button>
+          <button class="btn ghost" id="clearBtn" type="button">Clear</button>
+        </div>
+        <div id="fileStatus" class="status" hidden role="status"></div>
+        <div class="field">
+          <label for="role">Target role</label>
+          <select id="role"></select>
+        </div>
+        <div class="field" id="jdWrap" hidden>
+          <label for="jd">Job description</label>
+          <textarea id="jd" spellcheck="false" placeholder="Paste the job description here"></textarea>
+        </div>
+        <button class="btn" id="printBtn" type="button">Download report as PDF</button>
+        <p class="small" id="printNote">Opens the print dialog. Choose "Save as PDF".</p>
+      </div>
+
+      <div class="card" aria-label="Analysis results">
+        <div class="tabs" id="tabs" role="tablist"></div>
+        <div class="panel" id="panel" role="tabpanel"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="sec-head">
+      <span class="eyebrow">What you get</span>
+      <h2>Six things, in plain language</h2>
+    </div>
+    <div class="cols">
+      <div class="def"><h3>Skills with proof</h3><p>Every skill found is marked as shown in a project or experience, or only listed. Recruiters trust the first kind more.</p></div>
+      <div class="def"><h3>Role match score</h3><p>Required and nice-to-have skills for the role you chose, with the exact gaps listed.</p></div>
+      <div class="def"><h3>Resume quality checks</h3><p>Twelve rules: contact details, sections, length, action verbs, numbers, pronouns and filler words.</p></div>
+      <div class="def"><h3>Bullet fixes</h3><p>Weak project bullets are listed with what is wrong: weak opening, no number, too short.</p></div>
+      <div class="def"><h3>Fit across roles</h3><p>See how the same resume scores for Data Analyst, Data Scientist, Full Stack and five more.</p></div>
+      <div class="def"><h3>Private by design</h3><p>The resume is read and scored inside your browser. Nothing is uploaded to a server.</p></div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="sec-head">
+      <span class="eyebrow">Method</span>
+      <h2>How the analysis works</h2>
+    </div>
+    <ol class="steps">
+      <li><b>Read the file</b><p>PDF text is rebuilt line by line from its text positions. Word files are converted to plain text. Plain text is used as it is.</p></li>
+      <li><b>Split into sections</b><p>Lines like Education, Skills, Projects and Experience are found with heading patterns, so each line knows which section it sits in.</p></li>
+      <li><b>Extract skills</b><p>About 120 skills are matched with regular expressions over names and aliases. <code>sklearn</code> and <code>scikit-learn</code> both become Scikit-learn, and word boundaries stop <code>Java</code> matching inside <code>JavaScript</code>.</p></li>
+      <li><b>Check the evidence</b><p>A skill found in Projects, Experience or Achievements is demonstrated. A skill found only in Skills, Education or Certifications is listed.</p></li>
+      <li><b>Match the role</b><p>Required skills weigh 3, nice-to-have weigh 1.5. Demonstrated counts 1.0, listed counts 0.7, missing counts 0. Some requirements accept any one of a group, such as React, Angular or Vue.</p><p class="formula" style="margin-top:8px">match = 100 × earned weight ÷ total weight</p></li>
+      <li><b>Score and combine</b><p>Twelve quality rules add up to 100. For a job description, word-count cosine similarity is also shown.</p><p class="formula" style="margin-top:8px">overall = 0.5 × match + 0.3 × quality + 0.2 × evidence</p></li>
+    </ol>
+  </section>
+
+  <section id="about">
+    <div class="sec-head">
+      <span class="eyebrow">About</span>
+      <h2>About this project</h2>
+    </div>
+    <div class="about">
+      <div><h3>Purpose</h3><p class="small" style="font-size:14px">A resume skill analyzer built as a college project. It shows how text processing, pattern matching and similarity scoring can turn a resume into a skill profile.</p></div>
+      <div><h3>Built with</h3><ul><li>HTML, CSS, JavaScript</li><li>Regular-expression skill extraction</li><li>Cosine similarity on word counts</li><li>pdf.js and mammoth.js for file reading</li></ul></div>
+      <div><h3>Limits</h3><ul><li>English resumes only</li><li>About 120 skills in the taxonomy, mostly tech roles</li><li>Scanned image PDFs have no text to read</li><li>Rule-based, so the same resume always gets the same score</li></ul></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <span>Resume Skill Analyzer. Project by Chandan Kumar, Data Science, RCET Chhattisgarh.</span>
+  <span>Scores are a guide, not a hiring decision.</span>
+</footer>
+
+<div id="printReport" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script>
+/* ===== 1. ENGINE: skills, roles, scoring ===== */
+/* Resume Skill Analyzer: analysis engine. Pure functions, no DOM. */
+(function (root) {
+'use strict';
+
+const CATS = ['Programming', 'Web & App', 'Data & ML', 'Databases', 'Cloud & DevOps', 'Tools', 'CS Fundamentals', 'Soft skills'];
+const SKILLS = [
+  ['Python', 'Programming', ['python', 'python3']],
+  ['Java', 'Programming', ['java', 'core java']],
+  ['JavaScript', 'Programming', ['javascript', 'js', 'es6', 'ecmascript']],
+  ['TypeScript', 'Programming', ['typescript']],
+  ['C', 'Programming', ['c programming', 'c language']],
+  ['C++', 'Programming', ['c++', 'cpp']],
+  ['C#', 'Programming', ['c#']],
+  ['R', 'Programming', ['r programming', 'rstudio']],
+  ['PHP', 'Programming', ['php']],
+  ['Kotlin', 'Programming', ['kotlin']],
+  ['Dart', 'Programming', ['dart']],
+  ['MATLAB', 'Programming', ['matlab']],
+  ['Bash/Shell', 'Programming', ['bash', 'shell scripting', 'shell script']],
+  ['HTML', 'Web & App', ['html', 'html5']],
+  ['CSS', 'Web & App', ['css', 'css3']],
+  ['React', 'Web & App', ['react', 'reactjs', 'react.js']],
+  ['Angular', 'Web & App', ['angular', 'angularjs']],
+  ['Vue.js', 'Web & App', ['vue', 'vue.js', 'vuejs']],
+  ['Next.js', 'Web & App', ['next.js', 'nextjs']],
+  ['Node.js', 'Web & App', ['node.js', 'nodejs', 'node js']],
+  ['Express.js', 'Web & App', ['express.js', 'expressjs']],
+  ['Tailwind CSS', 'Web & App', ['tailwind', 'tailwind css', 'tailwindcss']],
+  ['Bootstrap', 'Web & App', ['bootstrap']],
+  ['jQuery', 'Web & App', ['jquery']],
+  ['Django', 'Web & App', ['django']],
+  ['Flask', 'Web & App', ['flask']],
+  ['FastAPI', 'Web & App', ['fastapi']],
+  ['Spring Boot', 'Web & App', ['spring boot', 'spring framework', 'spring mvc']],
+  ['REST APIs', 'Web & App', ['rest api', 'rest apis', 'restful', 'restful api', 'restful apis', '=REST', 'api development']],
+  ['Responsive Design', 'Web & App', ['responsive design', 'responsive', 'mobile-first']],
+  ['Android', 'Web & App', ['android', 'android studio']],
+  ['Flutter', 'Web & App', ['flutter']],
+  ['React Native', 'Web & App', ['react native']],
+  ['Pandas', 'Data & ML', ['pandas']],
+  ['NumPy', 'Data & ML', ['numpy']],
+  ['Matplotlib', 'Data & ML', ['matplotlib']],
+  ['Seaborn', 'Data & ML', ['seaborn']],
+  ['Scikit-learn', 'Data & ML', ['scikit-learn', 'scikit learn', 'sklearn']],
+  ['TensorFlow', 'Data & ML', ['tensorflow']],
+  ['PyTorch', 'Data & ML', ['pytorch']],
+  ['Keras', 'Data & ML', ['keras']],
+  ['OpenCV', 'Data & ML', ['opencv']],
+  ['Machine Learning', 'Data & ML', ['machine learning', 'ml', 'regression model', 'classification model', 'random forest', 'decision tree', 'cross-validation', 'cross validation', 'predictive model', 'supervised learning', 'unsupervised learning']],
+  ['Deep Learning', 'Data & ML', ['deep learning', 'neural network', 'neural networks', '=CNN', '=LSTM']],
+  ['NLP', 'Data & ML', ['nlp', 'natural language processing']],
+  ['Computer Vision', 'Data & ML', ['computer vision', 'image processing', 'object detection']],
+  ['Statistics', 'Data & ML', ['statistics', 'statistical', 'hypothesis testing', 'probability']],
+  ['Data Analysis', 'Data & ML', ['data analysis', 'data analytics', 'exploratory data analysis', '=EDA', 'analyzing data', 'analysing data']],
+  ['Data Visualization', 'Data & ML', ['data visualization', 'data visualisation', 'visualization', 'visualisation', 'dashboard', 'dashboards']],
+  ['Data Cleaning', 'Data & ML', ['data cleaning', 'data preprocessing', 'preprocessing', 'data wrangling', 'missing values', 'data cleansing']],
+  ['Feature Engineering', 'Data & ML', ['feature engineering', 'feature selection']],
+  ['Power BI', 'Data & ML', ['power bi', 'powerbi']],
+  ['Tableau', 'Data & ML', ['tableau']],
+  ['Excel', 'Data & ML', ['ms excel', 'microsoft excel', 'advanced excel', '=Excel']],
+  ['Hugging Face', 'Data & ML', ['hugging face', 'huggingface']],
+  ['LLMs', 'Data & ML', ['llm', 'llms', 'large language model', 'large language models', 'generative ai', 'prompt engineering', 'langchain']],
+  ['Spark', 'Data & ML', ['pyspark', 'apache spark', '=Spark']],
+  ['Time Series', 'Data & ML', ['time series', 'time-series']],
+  ['ETL', 'Data & ML', ['etl']],
+  ['SQL', 'Databases', ['sql']],
+  ['MySQL', 'Databases', ['mysql']],
+  ['PostgreSQL', 'Databases', ['postgresql', 'postgres']],
+  ['MongoDB', 'Databases', ['mongodb', 'mongo']],
+  ['SQLite', 'Databases', ['sqlite']],
+  ['Firebase', 'Databases', ['firebase']],
+  ['Redis', 'Databases', ['redis']],
+  ['NoSQL', 'Databases', ['nosql']],
+  ['AWS', 'Cloud & DevOps', ['aws', 'amazon web services']],
+  ['Azure', 'Cloud & DevOps', ['azure']],
+  ['GCP', 'Cloud & DevOps', ['gcp', 'google cloud']],
+  ['Docker', 'Cloud & DevOps', ['docker']],
+  ['Kubernetes', 'Cloud & DevOps', ['kubernetes', 'k8s']],
+  ['CI/CD', 'Cloud & DevOps', ['ci/cd', 'ci cd', 'continuous integration', 'github actions', 'jenkins']],
+  ['Linux', 'Cloud & DevOps', ['linux', 'ubuntu']],
+  ['Terraform', 'Cloud & DevOps', ['terraform']],
+  ['Git', 'Tools', ['git']],
+  ['GitHub', 'Tools', ['github', 'gitlab']],
+  ['Jupyter', 'Tools', ['jupyter', 'jupyter notebook', 'google colab', 'colab']],
+  ['Postman', 'Tools', ['postman']],
+  ['Figma', 'Tools', ['figma']],
+  ['Jira', 'Tools', ['jira']],
+  ['Data Structures', 'CS Fundamentals', ['data structures', 'data structure', 'dsa', 'data structures and algorithms']],
+  ['Algorithms', 'CS Fundamentals', ['algorithms', 'algorithm', 'dsa', 'data structures and algorithms']],
+  ['OOP', 'CS Fundamentals', ['oop', 'oops', 'object oriented programming', 'object-oriented programming', 'object oriented', 'object-oriented']],
+  ['DBMS', 'CS Fundamentals', ['dbms', 'database management system', 'database management systems', 'database management']],
+  ['Operating Systems', 'CS Fundamentals', ['operating system', 'operating systems', '=OS']],
+  ['Computer Networks', 'CS Fundamentals', ['computer networks', 'computer networking', 'networking']],
+  ['System Design', 'CS Fundamentals', ['system design', 'low level design', 'high level design']],
+  ['Agile', 'CS Fundamentals', ['agile', 'scrum']],
+  ['Communication', 'Soft skills', ['communication', 'communicator']],
+  ['Teamwork', 'Soft skills', ['teamwork', 'team player', 'collaboration', 'collaborated', 'collaborative']],
+  ['Leadership', 'Soft skills', ['leadership', 'led a team', 'team lead']],
+  ['Problem Solving', 'Soft skills', ['problem solving', 'problem-solving']],
+  ['Time Management', 'Soft skills', ['time management']],
+  ['Public Speaking', 'Soft skills', ['public speaking', 'presentation skills']]
+];
+const CAT_OF = {};
+SKILLS.forEach(s => { CAT_OF[s[0]] = s[1]; });
+
+const ROLES = [
+  { key: 'data-analyst', name: 'Data Analyst',
+    req: ['SQL', 'Excel', 'Python', 'Data Analysis', 'Data Visualization', 'Statistics'],
+    pref: ['Power BI', 'Tableau', 'Pandas', 'Data Cleaning', 'Matplotlib', 'Communication'] },
+  { key: 'data-scientist', name: 'Data Scientist',
+    req: ['Python', 'Machine Learning', 'Statistics', 'Pandas', 'NumPy', 'Scikit-learn', 'SQL', 'Data Visualization'],
+    pref: ['Deep Learning', 'Feature Engineering', 'Jupyter', 'TensorFlow', 'PyTorch', 'Git', 'Matplotlib'] },
+  { key: 'ml-engineer', name: 'Machine Learning Engineer',
+    req: ['Python', 'Machine Learning', 'Deep Learning', { l: 'Deep learning framework', any: ['TensorFlow', 'PyTorch', 'Keras'] }, 'Scikit-learn', 'Git', 'Docker'],
+    pref: ['NLP', 'Computer Vision', 'Hugging Face', 'AWS', 'Linux', 'Data Structures', { l: 'API framework', any: ['FastAPI', 'Flask'] }] },
+  { key: 'frontend', name: 'Frontend Developer',
+    req: ['HTML', 'CSS', 'JavaScript', { l: 'Frontend framework', any: ['React', 'Angular', 'Vue.js', 'Next.js'] }, 'Git', 'Responsive Design'],
+    pref: ['TypeScript', { l: 'CSS framework', any: ['Tailwind CSS', 'Bootstrap'] }, 'REST APIs', 'Figma', 'Next.js'] },
+  { key: 'fullstack', name: 'Full Stack Developer',
+    req: ['HTML', 'CSS', 'JavaScript', { l: 'Frontend framework', any: ['React', 'Angular', 'Vue.js', 'Next.js'] },
+      { l: 'Backend framework', any: ['Node.js', 'Express.js', 'Django', 'Flask', 'Spring Boot', 'PHP'] },
+      { l: 'Database', any: ['SQL', 'MySQL', 'PostgreSQL', 'MongoDB'] }, 'REST APIs', 'Git'],
+    pref: ['TypeScript', 'Docker', 'AWS', 'Next.js', 'Express.js'] },
+  { key: 'backend', name: 'Backend Developer',
+    req: [{ l: 'Backend language', any: ['Java', 'Python', 'Node.js', 'C#', 'PHP'] },
+      { l: 'Backend framework', any: ['Spring Boot', 'Django', 'Flask', 'FastAPI', 'Express.js'] },
+      'REST APIs', 'SQL', 'Git', 'Data Structures', 'OOP'],
+    pref: ['Docker', 'Redis', 'MongoDB', 'AWS', 'System Design', 'CI/CD'] },
+  { key: 'sde', name: 'Software Engineer (SDE)',
+    req: ['Data Structures', 'Algorithms', 'OOP', { l: 'Core language', any: ['Java', 'C++', 'Python', 'C#'] }, 'Git', 'DBMS', 'Operating Systems'],
+    pref: ['System Design', 'SQL', 'Computer Networks', 'Problem Solving', 'Agile', 'Linux'] },
+  { key: 'devops', name: 'DevOps / Cloud Engineer',
+    req: ['Linux', 'Git', 'Docker', 'CI/CD', { l: 'Cloud platform', any: ['AWS', 'Azure', 'GCP'] }, 'Bash/Shell', 'Kubernetes'],
+    pref: ['Terraform', 'Python', 'Computer Networks'] }
+];
+
+const SAMPLE = [
+  'SAMPLE CANDIDATE',
+  'Data Science Student | Raipur, Chhattisgarh',
+  'sample.candidate@example.com | 9876543210 | github.com/sample-candidate | linkedin.com/in/sample-candidate',
+  '',
+  'OBJECTIVE',
+  'Hardworking second-year B.Tech student in Data Science looking for an internship where I can apply machine learning and data analysis skills.',
+  '',
+  'EDUCATION',
+  'B.Tech in Data Science, Sample Engineering College, Chhattisgarh | 2024 - 2028 | CGPA: 8.1',
+  'Class XII (CGBSE), 2024 | 84%',
+  '',
+  'SKILLS',
+  'Languages: Python, Java, C, SQL',
+  'Data & ML: Pandas, NumPy, Matplotlib, Scikit-learn, Machine Learning',
+  'Tools: Git, GitHub, Jupyter Notebook, MS Excel',
+  'Web: HTML, CSS, JavaScript',
+  'Core: Data Structures, OOP, DBMS',
+  '',
+  'PROJECTS',
+  'Student Performance Predictor',
+  '- Built a regression model in Python using Scikit-learn to predict exam scores from attendance and study hours',
+  '- Cleaned a dataset of 1,200 student records with Pandas and handled missing values',
+  '- Improved R2 score from 0.61 to 0.78 using feature selection and cross-validation',
+  '',
+  'Sales Dashboard',
+  '- Analysed monthly sales data in Excel and created charts to find top-selling products',
+  '- Used SQL queries to join and filter tables in MySQL',
+  '',
+  'Portfolio Website',
+  '- Designed a responsive portfolio with HTML, CSS and JavaScript',
+  '- Worked on deployment using GitHub Pages',
+  '',
+  'CERTIFICATIONS',
+  'Python for Data Science - NPTEL',
+  'SQL Basics - Coursera',
+  '',
+  'ACHIEVEMENTS',
+  'Secured 2nd place in a college coding contest among 60 teams',
+  'Member of the college data science club'
+].join('\n');
+
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+const aliasPat = a => reEsc(a).replace(/ /g, '\\s+');
+function mkRe(list, flags) {
+  if (!list.length) return null;
+  return new RegExp('(?<![A-Za-z0-9+#.])(?:' + list.map(aliasPat).join('|') + ')(?![A-Za-z0-9+#])', flags);
+}
+const MATCHERS = SKILLS.map(([name, cat, aliases]) => {
+  const ci = [], cs = [];
+  aliases.forEach(a => (a[0] === '=' ? cs.push(a.slice(1)) : ci.push(a)));
+  return { name, cat, res: [mkRe(ci, 'gi'), mkRe(cs, 'g')].filter(Boolean) };
+});
+
+function bareLetter(line, letter, name) {
+  const ctx = /(languages?|skills?|technolog|stack|tools|programming|proficien|familiar|coding)/i.test(line) || (line.match(/,/g) || []).length >= 2;
+  if (!ctx) return [];
+  const re = new RegExp('(^|[\\s,;:/(|•*\\-])(' + letter + ')(?=[\\s,;/)|•]|$)', 'g');
+  const out = []; let m;
+  while ((m = re.exec(line))) { const s = m.index + m[1].length; out.push({ name, start: s, end: s + 1 }); }
+  return out;
+}
+
+function findAll(line) {
+  const hits = [];
+  MATCHERS.forEach(m => {
+    m.res.forEach(re => {
+      re.lastIndex = 0; let x;
+      while ((x = re.exec(line))) {
+        if (!x[0].length) { re.lastIndex++; continue; }
+        hits.push({ name: m.name, start: x.index, end: x.index + x[0].length });
+      }
+    });
+  });
+  bareLetter(line, 'C', 'C').forEach(h => hits.push(h));
+  bareLetter(line, 'R', 'R').forEach(h => hits.push(h));
+  hits.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  const lastEnd = {}, out = [];
+  hits.forEach(h => {
+    if ((lastEnd[h.name] ?? -1) > h.start) return;
+    lastEnd[h.name] = h.end; out.push(h);
+  });
+  return out;
+}
+
+const HEADS = [
+  ['summary', /^((professional|career) )?(summary|objective|profile)$|^about( me)?$/],
+  ['education', /^(education|academics?|academic (background|qualifications?)|educational (background|qualifications?)|qualifications?)$/],
+  ['skills', /^((technical|key|core|it|professional) )?skills?( (summary|set))?$|^technical (proficiency|expertise)$|^(technologies|tools|tech stack|tools & technologies|skills & tools|skills & technologies)( used)?$/],
+  ['projects', /^((academic|personal|key|major|mini) )?projects?( work)?$/],
+  ['experience', /^((work|professional|industrial|relevant) )?(experience|internships?|work history|employment( history)?)$|^(internships?|experience) & (internships?|experience|training)$|^(training|internship & training)$/],
+  ['certifications', /^(certifications?|certificates?|courses?|online courses?|licenses & certifications?|certifications? & courses?)$/],
+  ['achievements', /^(achievements?|awards?|awards & achievements?|honou?rs|accomplishments|extra[- ]?curricular( activities)?|positions of responsibility|leadership|co[- ]curricular)$/],
+  ['other', /^(interests?|hobbies|languages|declaration|references|personal (details|information)|links)$/]
+];
+const LISTED = new Set(['skills', 'education', 'summary', 'certifications']);
+function headingKey(line) {
+  let t = line.trim().replace(/[:：]+$/, '').replace(/^[^A-Za-z]+/, '').trim();
+  if (!t || t.length > 42 || t.split(/\s+/).length > 5) return null;
+  t = t.toLowerCase().replace(/\s*&\s*/g, ' & ').replace(/\s+/g, ' ');
+  for (const [key, re] of HEADS) if (re.test(t)) return key;
+  return null;
+}
+
+function scanResume(text) {
+  const raw = text.replace(/\r/g, '').split('\n');
+  let section = 'header';
+  const sections = new Set(), found = {}, lines = [];
+  raw.forEach(line => {
+    const hk = headingKey(line);
+    if (hk) { section = hk; sections.add(hk); }
+    const inline = /^\s*[•\-*–]?\s*(technical skills?|skills?|languages?|programming languages?|tools|technologies|frameworks|databases|libraries|coursework|relevant coursework)\s*[:\-–]\s*\S/i.test(line);
+    const listed = LISTED.has(section) || inline;
+    const info = { raw: line, section: hk ? 'heading' : section, listed, heading: !!hk, hits: [] };
+    if (!hk) {
+      const all = findAll(line);
+      all.forEach(h => {
+        const f = found[h.name] || (found[h.name] = { name: h.name, cat: CAT_OF[h.name], total: 0, listed: 0, demo: 0, evidence: '' });
+        f.total++;
+        if (listed) f.listed++; else { f.demo++; if (!f.evidence) f.evidence = line.trim(); }
+      });
+      let end = -1;
+      all.slice().sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start)).forEach(h => {
+        if (h.start >= end) { info.hits.push({ start: h.start, end: h.end, name: h.name }); end = h.end; }
+      });
+    }
+    lines.push(info);
+  });
+  return { lines, sections, found };
+}
+
+const stateOf = (n, found) => { const f = found[n]; return !f ? 0 : (f.demo > 0 ? 1 : 0.7); };
+function itemState(item, found) {
+  if (typeof item === 'string') return { label: item, state: stateOf(item, found), by: found[item] ? [item] : [], any: null };
+  let best = 0; const by = [];
+  item.any.forEach(n => { const s = stateOf(n, found); if (s > 0) by.push(n); if (s > best) best = s; });
+  return { label: item.l, state: best, by, any: item.any };
+}
+function evalRole(role, found) {
+  const req = role.req.map(i => itemState(i, found));
+  const pref = role.pref.map(i => itemState(i, found));
+  let num = 0, den = 0;
+  req.forEach(r => { num += 3 * r.state; den += 3; });
+  pref.forEach(r => { num += 1.5 * r.state; den += 1.5; });
+  return { score: den ? Math.round(100 * num / den) : 0, req, pref };
+}
+
+const STOP = new Set('a an the and or of to in for with on at by is are was were be as we you our your their it its this that from will can have has had not but if than then so such into over per etc using use used'.split(' '));
+function tokens(t) { return (t.toLowerCase().match(/[a-z][a-z0-9+#]{1,}/g) || []).filter(w => !STOP.has(w)); }
+function cosine(a, b) {
+  const ta = tokens(a), tb = tokens(b);
+  if (!ta.length || !tb.length) return 0;
+  const fa = {}, fb = {};
+  ta.forEach(w => { fa[w] = (fa[w] || 0) + 1; }); tb.forEach(w => { fb[w] = (fb[w] || 0) + 1; });
+  let dot = 0, na = 0, nb = 0;
+  for (const w in fa) { na += fa[w] * fa[w]; if (fb[w]) dot += fa[w] * fb[w]; }
+  for (const w in fb) nb += fb[w] * fb[w];
+  return dot / Math.sqrt(na * nb);
+}
+
+const STRONG = new Set(('built developed designed implemented created led managed analyzed analysed optimized optimised automated deployed integrated trained evaluated improved reduced increased delivered engineered architected launched wrote tested debugged migrated performed conducted organized organised coordinated presented researched achieved applied configured containerized extracted cleaned visualized visualised predicted classified secured scraped documented maintained mentored won ranked cut boosted streamlined refactored published compared prepared generated collected processed modeled modelled fine-tuned explored identified transformed constructed produced used established initiated spearheaded drove executed formulated leveraged').split(' '));
+const WEAK_START = /^(worked on|responsible for|helped|assisted|involved in|participated|tried|learned|learnt)/i;
+const FILLER = /hard[- ]?working|team player|passionate|self[- ]motivated|go[- ]getter|quick learner|detail[- ]oriented|result[- ]oriented|dynamic|enthusiastic/gi;
+const clean = s => s.replace(/^[\s•\-*–·▪●○■>→]+/, '').trim();
+
+function runChecks(scan, text) {
+  const words = (text.match(/\S+/g) || []).length;
+  const has = k => scan.sections.has(k);
+  const email = /[\w.+-]+@[\w-]+(\.[\w-]+)+/.test(text);
+  const phone = (text.match(/\+?\d[\d\s().-]{8,}\d/g) || []).some(s => s.replace(/\D/g, '').length >= 10);
+  const links = /linkedin\.com|github\.com/i.test(text);
+  let cand = scan.lines.filter(l => !l.heading && ['projects', 'experience', 'achievements'].includes(l.section) && clean(l.raw).length >= 25 &&
+    (/^\s*[•\-*–·▪●○■]/.test(l.raw) || clean(l.raw).split(/\s+/).length >= 8));
+  if (cand.length < 3) cand = scan.lines.filter(l => !l.heading && !l.listed && l.section !== 'header' && clean(l.raw).split(/\s+/).length >= 8);
+  let strong = 0, weak = 0, quant = 0;
+  cand.forEach(l => {
+    const c = clean(l.raw);
+    const w = c.split(/\s+/)[0].toLowerCase().replace(/[^a-z-]/g, '');
+    if (STRONG.has(w)) strong++;
+    if (WEAK_START.test(c)) weak++;
+    const stripped = c.replace(/\b(19|20)\d{2}\b/g, '').replace(/\S+@\S+/g, '').replace(/https?:\S+/g, '');
+    if (/\d/.test(stripped)) quant++;
+  });
+  const ratio = cand.length ? strong / cand.length : 0;
+  const pron = (text.match(/\b(I|my|me|myself)\b/g) || []).length;
+  const fill = (text.match(FILLER) || []).length;
+  const list = [];
+  const add = (id, title, max, pts, detail, fix) => list.push({ id, title, max, pts, detail, fix, status: pts >= max ? 'pass' : pts > 0 ? 'warn' : 'fail' });
+  add('email', 'Email address', 6, email ? 6 : 0, email ? 'Found.' : 'Not found.', 'Add a professional email address at the top.');
+  add('phone', 'Phone number', 4, phone ? 4 : 0, phone ? 'Found.' : 'Not found.', 'Add a phone number at the top.');
+  add('links', 'GitHub or LinkedIn link', 6, links ? 6 : 0, links ? 'Found a profile link.' : 'No github.com or linkedin.com link.', 'Add your GitHub or LinkedIn link. Recruiters open them.');
+  add('skills', 'Skills section', 12, has('skills') ? 12 : 0, has('skills') ? 'Section found.' : 'No Skills heading found.', 'Add a Skills section and group skills by type, such as Languages, Tools and Libraries.');
+  add('education', 'Education section', 8, has('education') ? 8 : 0, has('education') ? 'Section found.' : 'No Education heading found.', 'Add an Education section with degree, college, years and CGPA.');
+  const pe = has('projects') || has('experience');
+  add('proof', 'Projects or experience', 14, pe ? 14 : 0, pe ? 'Section found.' : 'No Projects or Experience heading found.', 'Add Projects or internship experience. Skills listed without proof carry little weight.');
+  const lp = words >= 200 && words <= 750 ? 10 : (words >= 120 && words <= 1000 ? 5 : 0);
+  add('length', 'Length', 10, lp, words + ' words. A good range is 200 to 750.', words < 200 ? 'The resume is short. Add detail to projects and skills.' : 'Trim it to one page, about 250 to 600 words.');
+  let vp = 0, vd;
+  if (cand.length < 3) vd = 'Fewer than 3 bullets found under Projects or Experience.';
+  else {
+    vp = ratio >= 0.5 ? 14 : ratio >= 0.25 ? 7 : 0;
+    vd = strong + ' of ' + cand.length + ' bullets start with a strong verb.' + (weak ? ' ' + weak + ' start with weak phrases like "Worked on".' : '');
+  }
+  add('verbs', 'Action verbs', 14, vp, vd, 'Start each bullet with a strong verb such as Built, Designed or Analyzed. Replace "Worked on" with what you actually did.');
+  const qp = quant >= 3 ? 14 : quant >= 1 ? 7 : 0;
+  add('numbers', 'Numbers in bullets', 14, qp, cand.length ? quant + ' of ' + cand.length + ' bullets contain a number.' : 'No bullets to check.', 'Add numbers to bullets: rows of data, accuracy gained, users, time saved.');
+  add('extras', 'Certifications or achievements', 4, has('certifications') || has('achievements') ? 4 : 0, has('certifications') || has('achievements') ? 'Section found.' : 'None found.', 'Add certifications or achievements with the issuer and year.');
+  add('pronouns', 'First-person words', 4, pron <= 1 ? 4 : pron <= 3 ? 2 : 0, pron + ' uses of I, my or me.', 'Remove I, my and me. Write bullets without pronouns.');
+  add('filler', 'Vague filler words', 4, fill === 0 ? 4 : fill <= 2 ? 2 : 0, fill ? fill + ' found, such as hardworking or team player.' : 'None found.', 'Replace vague words like hardworking or team player with proof from a project.');
+  return { list, words, score: list.reduce((a, c) => a + c.pts, 0) };
+}
+
+
+function bulletFixes(scan) {
+  const out = [];
+  scan.lines.forEach(l => {
+    if (l.heading || !['projects', 'experience', 'achievements'].includes(l.section)) return;
+    const c = clean(l.raw);
+    const nw = c.split(/\s+/).length;
+    if (c.length < 15 || !(/^\s*[•\-*–·▪●○■]/.test(l.raw) || nw >= 8)) return;
+    const w = c.split(/\s+/)[0].toLowerCase().replace(/[^a-z-]/g, '');
+    const issues = [];
+    if (WEAK_START.test(c)) issues.push('Starts with a weak phrase. Try Built, Developed or Designed.');
+    else if (!STRONG.has(w)) issues.push('Does not start with an action verb.');
+    const stripped = c.replace(/\b(19|20)\d{2}\b/g, '').replace(/\S+@\S+/g, '').replace(/https?:\S+/g, '');
+    if (!/\d/.test(stripped)) issues.push('No number. Add a result such as accuracy, rows of data, users or time saved.');
+    if (nw < 8) issues.push('Very short. Say what you used and what came out of it.');
+    if (issues.length) out.push({ text: c, issues });
+  });
+  return out.slice(0, 10);
+}
+
+function verdictOf(n) { return n >= 80 ? 'Strong match' : n >= 65 ? 'Good, needs polish' : n >= 45 ? 'Needs work' : 'Early draft'; }
+const tone = n => (n >= 70 ? 's-good' : n >= 45 ? 's-warn' : 's-bad');
+
+function jdRole(jd) {
+  const f = scanResume(jd).found;
+  const names = Object.values(f).filter(x => x.cat !== 'Soft skills').sort((a, b) => b.total - a.total).slice(0, 14).map(x => x.name);
+  return { key: 'jd', name: 'Job description', req: names, pref: [] };
+}
+
+function analyze(text, roleKey, jd) {
+  const scan = scanResume(text);
+  const checks = runChecks(scan, text);
+  const role = roleKey === 'jd' ? jdRole(jd || '') : (ROLES.find(r => r.key === roleKey) || ROLES[1]);
+  const res = evalRole(role, scan.found);
+  const tech = Object.values(scan.found).filter(f => f.cat !== 'Soft skills');
+  const evidence = tech.length ? Math.round(100 * tech.filter(f => f.demo > 0).length / tech.length) : 0;
+  const overall = Math.round(0.5 * res.score + 0.3 * checks.score + 0.2 * evidence);
+  const rank = ROLES.map(r => ({ key: r.key, name: r.name, score: evalRole(r, scan.found).score }));
+  if (roleKey === 'jd' && role.req.length) rank.push({ key: 'jd', name: 'Job description', score: res.score });
+  rank.sort((a, b) => b.score - a.score);
+  const sug = [];
+  res.req.forEach(r => {
+    const what = r.any ? 'one of ' + r.any.slice(0, 4).join(', ') + ' (' + r.label.toLowerCase() + ')' : r.label;
+    if (r.state === 0) sug.push({ p: 12, kind: 'Skill', text: 'Add ' + what + '. It is a core requirement for ' + role.name + '. Learn it, build one small project, and list it under Projects.' });
+    else if (r.state < 1) sug.push({ p: 7, kind: 'Skill', text: (r.by[0] || r.label) + ' appears only in your skills list. Add a project or internship bullet that shows you used it.' });
+  });
+  res.pref.forEach(r => { if (r.state === 0) sug.push({ p: 3, kind: 'Bonus', text: 'Nice to have: ' + (r.any ? 'one of ' + r.any.slice(0, 3).join(', ') : r.label) + '.' }); });
+  checks.list.forEach(c => { if (c.pts < c.max) sug.push({ p: c.max - c.pts, kind: 'Resume', text: c.fix }); });
+  sug.sort((a, b) => b.p - a.p);
+  return {
+    scan, checks, role, res, rank, evidence, overall, verdict: verdictOf(overall),
+    bullets: bulletFixes(scan), suggestions: sug, words: checks.words, ats: checks.score,
+    similarity: roleKey === 'jd' && jd ? Math.round(100 * cosine(text, jd)) : null
+  };
+}
+
+const api = { analyze, SAMPLE, ROLES, CATS, tone, verdictOf };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+root.ResumeEngine = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* ===== 2. READERS: PDF, DOCX, TXT to text ===== */
+/* File readers: turn a PDF, DOCX or text file into plain text. Needs pdf.js and mammoth.js for PDF and DOCX. */
+(function (root) {
+  'use strict';
+
+  // Rebuild lines from pdf.js text items: group by vertical position, order by horizontal position.
+  async function pdfToText(buffer, pdfjsLib) {
+    const lib = pdfjsLib || root.pdfjsLib;
+    if (!lib) throw new Error('pdfjs-missing');
+    const pdf = await lib.getDocument({ data: buffer }).promise;
+    const out = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const rows = [];
+      content.items.forEach(it => {
+        if (!it.str || !it.str.trim()) return;
+        const y = it.transform[5], x = it.transform[4];
+        let row = rows.find(r => Math.abs(r.y - y) <= 3);
+        if (!row) { row = { y, items: [] }; rows.push(row); }
+        row.items.push({ x, w: it.width || 0, s: it.str });
+      });
+      rows.sort((a, b) => b.y - a.y);
+      rows.forEach(r => {
+        r.items.sort((a, b) => a.x - b.x);
+        let line = '', end = null;
+        r.items.forEach(i => {
+          if (end !== null && i.x - end > 1.5 && !/\s$/.test(line)) line += ' ';
+          line += i.s; end = i.x + i.w;
+        });
+        out.push(line.replace(/[ \t]+/g, ' ').trim());
+      });
+      out.push('');
+    }
+    return out.join('\n').trim();
+  }
+
+  async function docxToText(buffer, mammoth) {
+    const m = mammoth || root.mammoth;
+    if (!m) throw new Error('mammoth-missing');
+    const res = await m.extractRawText({ arrayBuffer: buffer });
+    return String(res.value || '').trim();
+  }
+
+  function readAsBuffer(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(new Error('read-failed'));
+      fr.readAsArrayBuffer(file);
+    });
+  }
+  function readAsString(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ''));
+      fr.onerror = () => reject(new Error('read-failed'));
+      fr.readAsText(file);
+    });
+  }
+
+  async function fileToText(file) {
+    const name = (file.name || '').toLowerCase();
+    if (name.endsWith('.pdf') || file.type === 'application/pdf') return pdfToText(await readAsBuffer(file));
+    if (name.endsWith('.docx')) return docxToText(await readAsBuffer(file));
+    if (name.endsWith('.doc')) throw new Error('doc-unsupported');
+    return readAsString(file);
+  }
+
+  const api = { pdfToText, docxToText, fileToText };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.ResumeReaders = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* ===== 3. APP: buttons, tabs, results, report ===== */
+/* Resume Skill Analyzer: page behaviour. Uses ResumeEngine (analysis) and ResumeReaders (PDF, DOCX, TXT). */
+(function () {
+  'use strict';
+  const E = window.ResumeEngine;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const TABS = [['overview', 'Overview'], ['skills', 'Skills'], ['checks', 'Resume checks'], ['bullets', 'Bullet fixes'], ['doc', 'Highlighted resume']];
+  const st = { tab: 'overview', roleKey: 'data-scientist' };
+  let R = null, timer = null, sampleOn = true;
+
+  if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  function meter(label, v, note) {
+    return '<div class="meter ' + E.tone(v) + '"><div class="top"><span>' + esc(label) + '</span><span class="num">' + v + '%</span></div><div class="bar"><i style="width:' + v + '%"></i></div>' + (note ? '<span class="small">' + esc(note) + '</span>' : '') + '</div>';
+  }
+  function ring(v) {
+    const c = 2 * Math.PI * 42;
+    return '<div class="ring ' + E.tone(v) + '"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="var(--track)" stroke-width="9"/><circle cx="50" cy="50" r="42" fill="none" stroke="var(--c)" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + (c * v / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 50 50)"/></svg><b>' + v + '</b></div>';
+  }
+  function chip(cls, text, title) { return '<span class="chip ' + cls + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(text) + '</span>'; }
+
+  function overviewHTML(r) {
+    const fixes = r.suggestions.slice(0, 5);
+    let h = '<div class="scorehead">' + ring(r.overall) + '<div class="section" style="gap:4px;min-width:0;flex:1 1 220px"><span class="eyebrow">Overall score for ' + esc(r.role.name) + '</span><p class="verdict">' + esc(r.verdict) + '</p><p class="small">50% role match, 30% resume quality, 20% skill evidence.</p></div></div>';
+    h += '<div class="meters">' + meter('Role match', r.res.score, r.role.req.length ? 'Required and nice-to-have skills covered' : 'Paste a job description to compare')
+      + meter('Resume quality', r.ats, '12 formatting and content rules')
+      + meter('Skill evidence', r.evidence, 'Skills backed by projects or experience') + '</div>';
+    if (r.similarity !== null) h += '<p class="small">Wording similarity with the job description: <span class="num">' + r.similarity + '%</span> (cosine similarity of word counts).</p>';
+    h += '<div class="section"><h3>Fix these first</h3>';
+    h += fixes.length ? '<ol class="fixes">' + fixes.map(f => '<li><span><span class="kind">' + f.kind + '</span>' + esc(f.text) + '</span></li>').join('') + '</ol>' : '<p class="small">Nothing major to fix for this role.</p>';
+    h += '</div><div class="section"><h3>Fit across roles</h3><div class="rank">' + r.rank.map(x => {
+      const t = x.name === r.role.name;
+      return '<div class="rank-row' + (t ? ' is-target' : '') + '"><span>' + esc(x.name) + (t ? ' (target)' : '') + '</span><span class="num">' + x.score + '%</span><div class="bar"><i style="width:' + x.score + '%"></i></div></div>';
+    }).join('') + '</div></div>';
+    return h;
+  }
+
+  function skillsHTML(r) {
+    const all = Object.values(r.scan.found);
+    const demo = all.filter(f => f.demo > 0).length;
+    let h = '<p><b class="num">' + all.length + '</b> skills found. <b class="num">' + demo + '</b> are backed by a project, experience or achievement.</p>';
+    h += '<div class="legend">' + chip('d', 'Skill') + '<span>shown in a project or experience</span>' + chip('l', 'Skill') + '<span>only listed</span>' + chip('m', 'Skill') + '<span>missing for this role</span></div>';
+    E.CATS.forEach(cat => {
+      const items = all.filter(f => f.cat === cat).sort((a, b) => b.total - a.total);
+      if (!items.length) return;
+      h += '<div class="group"><h3>' + esc(cat) + '<span class="num">' + items.length + '</span></h3><div class="chips">'
+        + items.map(f => chip(f.demo > 0 ? 'd' : 'l', f.name, f.demo > 0 ? 'Evidence: ' + f.evidence : 'Only in skills, education or certifications')).join('') + '</div></div>';
+    });
+    if (!all.length) h += '<p class="empty">No known skills found yet.</p>';
+    const cover = items => items.filter(i => i.state > 0).length;
+    const row = i => i.state > 0 ? chip(i.state === 1 ? 'd' : 'l', i.by[0] || i.label, i.label) : chip('m', i.any ? i.label + ' (' + i.any.slice(0, 3).join(' / ') + ')' : i.label);
+    h += '<div class="group"><h3>Gap for ' + esc(r.role.name) + '</h3>';
+    if (!r.role.req.length) h += '<p class="small">No known skills found in the job description yet. Paste the full text on the left.</p>';
+    else {
+      h += '<p class="small">Required: <span class="num">' + cover(r.res.req) + ' of ' + r.res.req.length + '</span> covered</p><div class="chips">' + r.res.req.map(row).join('') + '</div>';
+      if (r.res.pref.length) h += '<p class="small" style="margin-top:8px">Nice to have: <span class="num">' + cover(r.res.pref) + ' of ' + r.res.pref.length + '</span> covered</p><div class="chips">' + r.res.pref.map(row).join('') + '</div>';
+    }
+    return h + '</div>';
+  }
+
+  function checksHTML(r) {
+    const label = { pass: 'Good', warn: 'Improve', fail: 'Missing' };
+    return '<p><b class="num">' + r.ats + ' / 100</b> resume quality, from 12 rules.</p><ul class="checks">' + r.checks.list.map(c =>
+      '<li><span class="pill ' + c.status + '">' + label[c.status] + '</span><span><span class="t">' + esc(c.title) + '</span><br><span class="d">' + esc(c.detail) + (c.pts < c.max ? ' ' + esc(c.fix) : '') + '</span></span><span class="num small">' + c.pts + '/' + c.max + '</span></li>').join('') + '</ul>';
+  }
+
+  function bulletsHTML(r) {
+    if (!r.bullets.length) return '<p class="empty">No weak bullets found under Projects or Experience. Good.</p>';
+    return '<p>Pattern for a strong bullet: <b>action verb + what you built + tool used + result with a number</b>.</p><div class="section">'
+      + r.bullets.map(b => '<div class="bfix"><span>' + esc(b.text) + '</span><ul>' + b.issues.map(i => '<li>' + esc(i) + '</li>').join('') + '</ul></div>').join('') + '</div>';
+  }
+
+  function docHTML(r) {
+    const body = r.scan.lines.map(l => {
+      if (l.heading) return '<b>' + esc(l.raw) + '</b>';
+      let out = '', pos = 0;
+      l.hits.forEach(h => {
+        out += esc(l.raw.slice(pos, h.start)) + '<mark class="sk' + (l.listed ? ' l' : '') + '">' + esc(l.raw.slice(h.start, h.end)) + '</mark>';
+        pos = h.end;
+      });
+      return out + esc(l.raw.slice(pos));
+    }).join('\n');
+    return '<div class="legend"><mark class="sk">Skill</mark><span>shown in a project or experience</span><mark class="sk l">Skill</mark><span>only listed</span></div><div class="doc" tabindex="0">' + body + '</div>';
+  }
+
+  function renderTabs() {
+    $('tabs').innerHTML = TABS.map(([k, n]) => '<button class="tab" role="tab" type="button" data-tab="' + k + '" aria-selected="' + (st.tab === k) + '">' + n + '</button>').join('');
+  }
+  function renderPanel() {
+    const fn = { overview: overviewHTML, skills: skillsHTML, checks: checksHTML, bullets: bulletsHTML, doc: docHTML }[st.tab];
+    $('panel').innerHTML = R ? fn(R) : '<p class="empty">Paste your resume text on the left, upload a file, or press Load sample.</p>';
+  }
+  function buildReport() {
+    if (!R) return '';
+    const d = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    return '<h1>Resume Skill Analysis</h1><p class="small">' + esc(d) + ' · Target role: ' + esc(R.role.name) + '</p>'
+      + '<div class="pr-sec">' + overviewHTML(R) + '</div>'
+      + '<div class="pr-sec"><h2>Skills</h2>' + skillsHTML(R) + '</div>'
+      + '<div class="pr-sec"><h2>Resume quality checks</h2>' + checksHTML(R) + '</div>'
+      + '<div class="pr-sec"><h2>Bullet fixes</h2>' + bulletsHTML(R) + '</div>';
+  }
+  function run() {
+    const text = $('resume').value;
+    $('wc').textContent = (text.match(/\S+/g) || []).length + ' words';
+    R = text.trim().length < 20 ? null : E.analyze(text, st.roleKey, $('jd').value);
+    renderPanel();
+  }
+  function setText(t, isSample) {
+    $('resume').value = t; sampleOn = !!isSample; $('sampleTag').hidden = !isSample; run();
+  }
+  function status(msg, isErr) {
+    const s = $('fileStatus');
+    s.hidden = !msg; s.textContent = msg || ''; s.className = 'status' + (isErr ? ' err' : '');
+  }
+
+  const FILE_ERR = {
+    'pdfjs-missing': 'PDF reading needs the pdf.js library, which could not load. Check your internet connection, or paste the text instead.',
+    'mammoth-missing': 'Word reading needs the mammoth.js library, which could not load. Check your internet connection, or paste the text instead.',
+    'doc-unsupported': 'Old .doc files are not supported. Save the file as .docx or PDF, or paste the text.',
+    'read-failed': 'The file could not be read. Try another file or paste the text.'
+  };
+  async function onFile(file) {
+    status('Reading ' + file.name + '...');
+    try {
+      const text = await window.ResumeReaders.fileToText(file);
+      if (!text || text.trim().length < 20) { status('No text found in this file. A scanned image PDF has no text to read. Paste the text instead.', true); return; }
+      setText(text, false);
+      status('Loaded ' + file.name + '. Check the text below for mistakes.');
+    } catch (e) {
+      status(FILE_ERR[e && e.message] || 'This file could not be read. Try another file or paste the text.', true);
+    }
+  }
+
+  function init() {
+    $('role').innerHTML = E.ROLES.map(r => '<option value="' + r.key + '">' + esc(r.name) + '</option>').join('') + '<option value="jd">From a job description</option>';
+    $('role').value = st.roleKey;
+    renderTabs();
+    setText(E.SAMPLE, true);
+    $('resume').addEventListener('input', () => { if (sampleOn) { sampleOn = false; $('sampleTag').hidden = true; } clearTimeout(timer); timer = setTimeout(run, 180); });
+    $('jd').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 180); });
+    $('role').addEventListener('change', e => { st.roleKey = e.target.value; $('jdWrap').hidden = st.roleKey !== 'jd'; run(); });
+    $('loadSample').addEventListener('click', () => { status(''); setText(E.SAMPLE, true); });
+    $('clearBtn').addEventListener('click', () => { status(''); setText('', false); $('resume').focus(); });
+    $('fileIn').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) onFile(f); e.target.value = ''; });
+    $('tabs').addEventListener('click', e => {
+      const b = e.target.closest('[data-tab]'); if (!b) return;
+      st.tab = b.dataset.tab; renderTabs(); renderPanel();
+    });
+    $('printBtn').addEventListener('click', () => {
+      if (!R) { status('Add a resume first.', true); return; }
+      $('printReport').innerHTML = buildReport();
+      window.print();
+    });
+    // Inside viewers that block the print dialog (for example a preview frame), hide the button.
+    if (window.claude) { $('printBtn').hidden = true; $('printNote').hidden = true; }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
